@@ -218,9 +218,23 @@ PLAYER_PROP_DOUBLE(duration,duration);
 	return url;
 }
 
+
 -(void)play:(id)args
 {
 	[self start:args];
+}
+
+-(void)setTime:(id)args
+{
+    ENSURE_SINGLE_ARG(args,NSNumber);
+    double time = [TiUtils doubleValue:args];
+    
+    [[self player] seekToTime:time];
+}
+
+-(NSNumber*)time
+{
+    return self.progress;
 }
 
 // Only need to ensure the UI thread when starting; and we should actually wait until it's finished so

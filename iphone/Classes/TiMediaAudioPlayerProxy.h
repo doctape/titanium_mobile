@@ -21,10 +21,11 @@
 }
 
 @property (nonatomic,readonly) NSURL *url;
-@property (nonatomic,readwrite,assign)  NSNumber *paused;
-@property (nonatomic,readonly) NSNumber *playing;
-@property (nonatomic,readonly) NSNumber *waiting;
-@property (nonatomic,readonly) NSNumber *idle;
+@property (nonatomic,readonly) NSNumber *time;
+@property (nonatomic,readwrite,assign,getter=isPaused)  NSNumber *paused;
+@property (nonatomic,readonly,getter=isPlaying) NSNumber *playing;
+@property (nonatomic,readonly,getter=isWaiting) NSNumber *waiting;
+@property (nonatomic,readonly,getter=isIdle) NSNumber *idle;
 @property (nonatomic,readonly) NSNumber *bitRate;
 @property (nonatomic,readonly) NSNumber *progress;
 @property (nonatomic,readonly) NSNumber *state;
