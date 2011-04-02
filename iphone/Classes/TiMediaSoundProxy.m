@@ -38,6 +38,18 @@
 	return player;
 }
 
+-(void)_initWithProperties:(NSDictionary *)properties
+{
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_4_0
+    if ([TiUtils isIOS4OrGreater])
+    {
+        // default handlePlayRemoteControls to true
+        bool handlePlayRemoteControls = [TiUtils boolValue:@"handlePlayRemoteControls" properties:properties def:YES];
+        [self setValue:NUMBOOL(handlePlayRemoteControls) forKey:@"handlePlayRemoteControls"];
+    }
+#endif
+}
+
 -(void)_configure
 {
 	volume = 1.0;
@@ -66,6 +78,51 @@
 	RELEASE_TO_NIL(tempFile);
 	
 	[super _destroy];
+}
+
+-(void)_listenerAdded:(NSString *)type count:(int)count
+{
+	if (count == 1 && [type isEqualToString:@"remoteControl"])
+    {
+        fireRemoteControlEvents = YES;
+    }
+}
+
+-(void)_listenerRemoved:(NSString *)type count:(int)count
+{
+	if (count == 0 && [type isEqualToString:@"remoteControl"])
+	{
+		fireRemoteControlEvents = NO;
+	}
+}
+
+-(AVAudioPlayer*)player
+{
+	if (player==nil)
+	{
+		// We do the same thing as the video player and fail silently, now.
+		if (url == nil) {
+			return nil;
+		}
+		NSError *error = nil;
+		player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:(NSError **)&error];
+		if (error != nil)
+		{
+			[self throwException:[error description] subreason:[NSString stringWithFormat:@"error loading sound url: %@",url] location:CODELOCATION];
+			return nil;
+		}
+		[player setDelegate:self];
+		[player prepareToPlay];
+		[player setVolume:volume];
+		[player setNumberOfLoops:(looping?-1:0)];
+		[player setCurrentTime:resumeTime];
+	}
+	return player;
+}
+
+-(void)_prepare
+{
+	[[self player] prepareToPlay];
 }
 
 #pragma mark Public APIs
@@ -350,8 +407,20 @@
 
 - (void)remoteControlEvent:(NSNotification*)note
 {
-	UIEvent *event = [[note userInfo]objectForKey:@"event"];
-	switch(event.subtype)
+	UIEvent *uiEvent = [[note userInfo] objectForKey:@"event"];
+	
+    if (fireRemoteControlEvents)
+    {
+        NSDictionary *event = [NSDictionary dictionaryWithObject:NUMINT(uiEvent.subtype) forKey:@"controlType"];
+        [self fireEvent:@"remoteControl" withObject:event];
+    }
+    
+    if (![TiUtils boolValue:[self valueForKey:@"handlePlayRemoteControls"]])
+    {
+        return;
+    }
+    
+    switch(uiEvent.subtype)
 	{
 		case UIEventSubtypeRemoteControlTogglePlayPause:
 		{
