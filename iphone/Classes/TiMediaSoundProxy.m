@@ -96,30 +96,6 @@
 	}
 }
 
--(AVAudioPlayer*)player
-{
-	if (player==nil)
-	{
-		// We do the same thing as the video player and fail silently, now.
-		if (url == nil) {
-			return nil;
-		}
-		NSError *error = nil;
-		player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:(NSError **)&error];
-		if (error != nil)
-		{
-			[self throwException:[error description] subreason:[NSString stringWithFormat:@"error loading sound url: %@",url] location:CODELOCATION];
-			return nil;
-		}
-		[player setDelegate:self];
-		[player prepareToPlay];
-		[player setVolume:volume];
-		[player setNumberOfLoops:(looping?-1:0)];
-		[player setCurrentTime:resumeTime];
-	}
-	return player;
-}
-
 -(void)_prepare
 {
 	[[self player] prepareToPlay];

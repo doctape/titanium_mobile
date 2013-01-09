@@ -38,8 +38,6 @@
 @property (nonatomic,readonly) NSNumber *progress;
 @property (nonatomic,readonly) NSNumber *state;
 
-@property (nonatomic,copy)	NSNumber *volume;
-
 @property (nonatomic,readwrite,assign) NSNumber* audioSessionMode;
 @property (nonatomic,readwrite,assign) NSNumber* bufferSize;
 

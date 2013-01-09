@@ -149,7 +149,7 @@
 -(void)internalStart
 {
 	if (![NSThread isMainThread]) {
-		TiThreadPerformOnMainThread(^{[self start:args];}, YES);
+		TiThreadPerformOnMainThread(^{[self start:nil];}, YES);
 		return;
 	}
 	// indicate we're going to start playing
@@ -295,19 +295,6 @@ PLAYER_PROP_DOUBLE(duration,duration);
 -(NSNumber*)time
 {
     return [self progress];
-}
-
--(void)setVolume:(id)args
-{
-    ENSURE_SINGLE_ARG(args,NSNumber);
-    float newVolume = [TiUtils floatValue:args];
-    
-    [[MPMusicPlayerController applicationMusicPlayer] setVolume:newVolume];
-}
-
--(NSNumber*)volume
-{
-    return NUMFLOAT([[TiMediaAudioSession sharedSession] volume]);
 }
 
 -(void)start:(id)args
