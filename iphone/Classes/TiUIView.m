@@ -483,6 +483,11 @@ DEFINE_EXCEPTIONS
 	return [self layer];
 }
 
+-(CALayer *)gradientLayer
+{
+    return gradientLayer;
+}
+
 // You might wonder why we don't just use the native feature of -[UIColor colorWithPatternImage:].
 // Here's why:
 // * It doesn't properly handle alpha channels
@@ -494,9 +499,9 @@ DEFINE_EXCEPTIONS
 -(void)renderRepeatedBackground:(id)image
 {
     if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
+        TiThreadPerformOnMainThread(^{
             [self renderRepeatedBackground:image];
-        });
+        }, NO);
         return;
     }
     
