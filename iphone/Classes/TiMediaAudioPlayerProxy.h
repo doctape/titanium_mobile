@@ -18,25 +18,26 @@
 	AudioStreamer *player;
 	BOOL progress;
 	NSTimer *timer;
-    BOOL fireRemoteControlEvents;
+	BOOL fireRemoteControlEvents;
     
-    // used to keep firing progress updates for the last few seconds of the reported duration
-    // even if player has stopped streaming audio
-    double playerProgress;
-    BOOL afterStopProgress;
-    double previousDuration;
+	// used to keep firing progress updates for the last few seconds of the reported duration
+	// even if player has stopped streaming audio
+	double playerProgress;
+	BOOL afterStopProgress;
+	double previousDuration;
 }
 
 @property (nonatomic,readonly) NSURL *url;
-@property (nonatomic,readonly) NSNumber *time;
-@property (nonatomic,readonly) NSNumber *volume;
-@property (nonatomic,readwrite,assign,getter=isPaused)  NSNumber *paused;
+@property (nonatomic,readwrite,assign,getter=isPaused) NSNumber *paused;
 @property (nonatomic,readonly,getter=isPlaying) NSNumber *playing;
 @property (nonatomic,readonly,getter=isWaiting) NSNumber *waiting;
 @property (nonatomic,readonly,getter=isIdle) NSNumber *idle;
 @property (nonatomic,readonly) NSNumber *bitRate;
 @property (nonatomic,readonly) NSNumber *progress;
 @property (nonatomic,readonly) NSNumber *state;
+
+@property (nonatomic,readonly) NSNumber *volume;
+@property (nonatomic,readonly) NSNumber *time;
 
 @property (nonatomic,readwrite,assign) NSNumber* audioSessionMode;
 @property (nonatomic,readwrite,assign) NSNumber* bufferSize;
