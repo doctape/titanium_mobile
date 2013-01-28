@@ -179,6 +179,7 @@
 	}
 }
 
+
 #pragma mark Public APIs
 
 -(void)setPaused:(NSNumber *)paused
@@ -274,7 +275,6 @@ PLAYER_PROP_DOUBLE(duration,duration);
 {
 	return url;
 }
-
 
 -(void)play:(id)args
 {
