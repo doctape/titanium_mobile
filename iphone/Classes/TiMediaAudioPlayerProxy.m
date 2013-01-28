@@ -11,8 +11,7 @@
 #import "TiMediaAudioSession.h"
 #include <AudioToolbox/AudioToolbox.h>
 
-// for MPMusicPlayerController for setting volume
-#import <MediaPlayer/MediaPlayer.h>
+#import <MediaPlayer/MediaPlayer.h> // for MPMusicPlayerController for setting volume
 
 @implementation TiMediaAudioPlayerProxy
 
@@ -28,14 +27,12 @@
 	if (initialMode) {
 		[self setAudioSessionMode:[NSNumber numberWithInt:initialMode]];
 	}
-    
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_4_0
-        // default handlePlayRemoteControls to true
-        bool handlePlayRemoteControls = [TiUtils boolValue:@"handlePlayRemoteControls" properties:properties def:YES];
-        [self setValue:NUMBOOL(handlePlayRemoteControls) forKey:@"handlePlayRemoteControls"];
-        
-        WARN_IF_BACKGROUND_THREAD_OBJ;	//NSNotificationCenter is not threadsafe!
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(remoteControlEvent:) name:kTiRemoteControlNotification object:nil];
+	// default handlePlayRemoteControls to true
+	bool handlePlayRemoteControls = [TiUtils boolValue:@"handlePlayRemoteControls" properties:properties def:YES];
+	[self setValue:NUMBOOL(handlePlayRemoteControls) forKey:@"handlePlayRemoteControls"];    
+	WARN_IF_BACKGROUND_THREAD_OBJ;	//NSNotificationCenter is not threadsafe!
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(remoteControlEvent:) name:kTiRemoteControlNotification object:nil];
 #endif
 }
 
@@ -65,11 +62,10 @@
 	{
 		progress = YES;
 	}
-    
-    if (count == 1 && [type isEqualToString:@"remoteControl"])
-    {
-        fireRemoteControlEvents = YES;
-    }
+	if (count == 1 && [type isEqualToString:@"remoteControl"])
+	{
+		fireRemoteControlEvents = YES;
+	}
 }
 
 -(void)_listenerRemoved:(NSString *)type count:(int)count
@@ -78,8 +74,7 @@
 	{
 		progress = NO;
 	}
-    
-    if (count == 0 && [type isEqualToString:@"remoteControl"])
+	if (count == 0 && [type isEqualToString:@"remoteControl"])
 	{
 		fireRemoteControlEvents = NO;
 	}
@@ -87,11 +82,10 @@
 
 -(void)createProgressTimer
 {
-    ENSURE_UI_THREAD_0_ARGS;
-    
-    // create progress callback timer that fires once per second. we might want to eventually make this
-    // more configurable but for now that's sufficient for most apps that want to display progress updates on the stream
-    timer = [[NSTimer scheduledTimerWithTimeInterval:1 target:self selector:@selector(updateProgress:) userInfo:nil repeats:YES] retain];
+	ENSURE_UI_THREAD_0_ARGS;
+	// create progress callback timer that fires once per second. we might want to eventually make this
+	// more configurable but for now that's sufficient for most apps that want to display progress updates on the stream
+	timer = [[NSTimer scheduledTimerWithTimeInterval:1 target:self selector:@selector(updateProgress:) userInfo:nil repeats:YES] retain];
 }
 
 -(AudioStreamer*)player
@@ -136,9 +130,8 @@
 
 -(void)startPlayer
 {
-    ENSURE_UI_THREAD_0_ARGS;
-    
-    [[self player] start];
+	ENSURE_UI_THREAD_0_ARGS;
+	[[self player] start];
 }
 
 // Only need to ensure the UI thread when starting; and we should actually wait until it's finished so
@@ -155,7 +148,6 @@
 				   subreason:[[NSNumber numberWithUnsignedInt:[[TiMediaAudioSession sharedSession] sessionMode]] description]
 					location:CODELOCATION];
 	}
-	
 	if (player == nil || !([player isPlaying] || [player isPaused] || [player isWaiting])) {
 		[[TiMediaAudioSession sharedSession] startAudioSession];
 	}
@@ -164,17 +156,16 @@
 
 -(void)restart:(id)args
 {
-	BOOL playing = [player isPlaying] || [player isPaused] || [player isWaiting];
-	
-    [self destroyPlayer];
-	
-    // recreate it
-    [self player];
-    
+	BOOL playing = [player isPlaying] || [player isPaused] || [player isWaiting];	
+	[self destroyPlayer];
+
+	// recreate it
+	[self player];
+
 	if (playing)
 	{
-        // restart the player this way to restart the audio session
-        // (since destroyPlayer stops the audio session)
+		// restart the player this way to restart the audio session
+		// (since destroyPlayer stops the audio session)
 		[self internalStart];
 	}
 }
@@ -283,20 +274,19 @@ PLAYER_PROP_DOUBLE(duration,duration);
 
 -(void)setTime:(id)args
 {
-    ENSURE_SINGLE_ARG(args,NSNumber);
-    double time = [TiUtils doubleValue:args];
-    
-    [[self player] seekToTime:time];
+	ENSURE_SINGLE_ARG(args,NSNumber);
+	double time = [TiUtils doubleValue:args];
+	[[self player] seekToTime:time];
 }
 
 -(NSNumber*)time
 {
-    return [self progress];
+	return [self progress];
 }
 
 -(void)start:(id)args
 {
-    [self internalStart];
+	[self internalStart];
 }
 
 -(void)stop:(id)args
@@ -402,56 +392,55 @@ MAKE_SYSTEM_PROP(STATE_PAUSED,AS_PAUSED);
 
 - (void)updateProgress:(NSTimer *)updatedTimer
 {
-    if (!player){
-        return;
-    }
+	if (!player){
+		return;
+	}
     
-    // need to keep firing progress updates for the last few seconds of the reported duration
-    // even if player has stopped streaming audio
-    if (player.state == AS_STOPPING || player.state == AS_STOPPED)
-    {
-        afterStopProgress = YES;
-        previousDuration = player.duration;
-    }
-    
+	// need to keep firing progress updates for the last few seconds of the reported duration
+	// even if player has stopped streaming audio
+	if (player.state == AS_STOPPING || player.state == AS_STOPPED)
+	{
+		afterStopProgress = YES;
+		previousDuration = player.duration;
+	}
+
 	if ([player isPlaying] || afterStopProgress)
 	{
 		if (afterStopProgress){
-            NSUInteger playerProgressInt = round(playerProgress);
-            NSUInteger previousDurationInt = round(previousDuration);
-            
-            // (1) stop firing progress updates if the player was stopped significantly before the end
-            // (most likely a manual stop versus the player ending a bit before its reported duration)
-            // (2) stop firing progress updates when the progress has reached the reported duration
-            if (playerProgressInt + 3 < previousDurationInt || playerProgressInt >= previousDurationInt){
-                afterStopProgress = false;
-                playerProgress = 0.0;
-            }
-            else
-            {
-                // simulate progress
-                playerProgress += 1.0;
-            }
-        }
-        else
-        {
-            if (player.bitRate != 0.0)
-            {
-                playerProgress = player.progress;
-            }
-            else
-            {
-                playerProgress = 0.0;
-            }
-        }
-        
-        NSDictionary *event = [NSDictionary dictionaryWithObject:NUMDOUBLE(playerProgress) forKey:@"progress"];
+			NSUInteger playerProgressInt = round(playerProgress);
+			NSUInteger previousDurationInt = round(previousDuration);
+
+			// (1) stop firing progress updates if the player was stopped significantly before the end
+			// (most likely a manual stop versus the player ending a bit before its reported duration)
+			// (2) stop firing progress updates when the progress has reached the reported duration
+			if (playerProgressInt + 3 < previousDurationInt || playerProgressInt >= previousDurationInt){
+				afterStopProgress = false;
+				playerProgress = 0.0;
+			}
+			else
+			{
+				// simulate progress
+				playerProgress += 1.0;
+			}
+		}
+		else
+		{
+			if (player.bitRate != 0.0)
+			{
+				playerProgress = player.progress;
+			}
+			else
+			{
+				playerProgress = 0.0;
+			}
+		}
+
+		NSDictionary *event = [NSDictionary dictionaryWithObject:NUMDOUBLE(playerProgress) forKey:@"progress"];
 		[self fireEvent:@"progress" withObject:event];
 	}
 }
 
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_4_0
-
 - (void)remoteControlEvent:(NSNotification*)note
 {
 	UIEvent *uiEvent = [[note userInfo] objectForKey:@"event"];
