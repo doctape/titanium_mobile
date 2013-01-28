@@ -381,18 +381,18 @@
 - (void)remoteControlEvent:(NSNotification*)note
 {
 	UIEvent *event = [[note userInfo]objectForKey:@"event"];
-	
-    if (fireRemoteControlEvents)
-    {
-        NSDictionary *event = [NSDictionary dictionaryWithObject:NUMINT(uiEvent.subtype) forKey:@"controlType"];
-        [self fireEvent:@"remoteControl" withObject:event];
-    }
-    
-    if (![TiUtils boolValue:[self valueForKey:@"handlePlayRemoteControls"]])
-    {
-        return;
-    }
-    
+
+	if (fireRemoteControlEvents)
+	{
+		NSDictionary *event = [NSDictionary dictionaryWithObject:NUMINT(uiEvent.subtype) forKey:@"controlType"];
+		[self fireEvent:@"remoteControl" withObject:event];
+	}
+
+	if (![TiUtils boolValue:[self valueForKey:@"handlePlayRemoteControls"]])
+	{
+		return;
+	}
+
 	switch(event.subtype)
 	{
 		case UIEventSubtypeRemoteControlTogglePlayPause:

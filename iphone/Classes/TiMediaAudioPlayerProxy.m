@@ -156,9 +156,9 @@
 
 -(void)restart:(id)args
 {
-	BOOL playing = [player isPlaying] || [player isPaused] || [player isWaiting];	
+	BOOL playing = [player isPlaying] || [player isPaused] || [player isWaiting];
 	[self destroyPlayer];
-
+	
 	// recreate it
 	[self player];
 
