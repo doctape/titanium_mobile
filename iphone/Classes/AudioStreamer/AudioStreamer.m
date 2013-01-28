@@ -136,12 +136,7 @@ static NSString * const AS_AUDIO_BUFFER_TOO_SMALL_STRING = @"Audio packets are l
 }
 
 -(void)seekToTime:(double)time {
-    if ([TiUtils isiPhoneOS3_2OrGreater]) {
-        [(AudioStreamerCUR*)streamer seekToTime:time];
-    }
-    else {
-        NSLog(@"[WARN] Ignoring seekToTime: since it is not supported for older pre-iOS 3.2 BC streamer");
-    }
+    [(AudioStreamerCUR*)streamer seekToTime:time];
 }
 
 #define RUN_ON_STREAMER_SET(func, type) \
@@ -177,16 +172,7 @@ RUN_ON_STREAMER_RETURN(volume, double)
 
 -(double)duration
 {
-    if ([TiUtils isiPhoneOS3_2OrGreater])
-    {
-        return [(AudioStreamerCUR*)streamer duration];
-    }
-    else
-    {
-        NSLog(@"[WARN] Returning 0 for duration since it is not supported for older pre-iOS 3.2 BC streamer");
-        
-        return 0.0;
-    }
+    return [(AudioStreamerCUR*)streamer duration];
 }
 
 // Functions

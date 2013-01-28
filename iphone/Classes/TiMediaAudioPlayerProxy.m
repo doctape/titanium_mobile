@@ -30,15 +30,12 @@
 	}
     
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_4_0
-    if ([TiUtils isIOS4OrGreater])
-    {
         // default handlePlayRemoteControls to true
         bool handlePlayRemoteControls = [TiUtils boolValue:@"handlePlayRemoteControls" properties:properties def:YES];
         [self setValue:NUMBOOL(handlePlayRemoteControls) forKey:@"handlePlayRemoteControls"];
         
         WARN_IF_BACKGROUND_THREAD_OBJ;	//NSNotificationCenter is not threadsafe!
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(remoteControlEvent:) name:kTiRemoteControlNotification object:nil];
-    }
 #endif
 }
 
