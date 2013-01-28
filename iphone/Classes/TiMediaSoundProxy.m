@@ -380,7 +380,7 @@
 
 - (void)remoteControlEvent:(NSNotification*)note
 {
-	UIEvent *event = [[note userInfo] objectForKey:@"event"];
+	UIEvent *event = [[note userInfo]objectForKey:@"event"];
 	
     if (fireRemoteControlEvents)
     {
@@ -393,7 +393,7 @@
         return;
     }
     
-    switch(event.subtype)
+	switch(event.subtype)
 	{
 		case UIEventSubtypeRemoteControlTogglePlayPause:
 		{
