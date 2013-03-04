@@ -109,8 +109,8 @@ exports.config = function (logger, config, cli) {
 			}
 			
 			Object.keys(iosEnv.xcode).forEach(function (key) {
-				iosEnv.xcode[key].sdks.forEach(function (sdk, i) {
-					if (iosEnv.xcode[key].selected && i == 0) {
+				iosEnv.xcode[key].sdks.forEach(function (sdk) {
+					if (iosEnv.xcode[key].selected && !defaultSdk || version.gt(sdk, defaultSdk)) {
 						defaultSdk = sdk;
 					}
 					sdks[sdk] = 1;
@@ -391,36 +391,38 @@ exports.validate = function (logger, config, cli) {
 		process.exit(1);
 	}
 	
-	// make sure the app doesn't have any blacklisted directories in the Resources directory and warn about graylisted names
-	fs.readdirSync(resourcesDir).forEach(function (filename) {
-		var lcaseFilename = filename.toLowerCase(),
-			isDir = fs.lstatSync(path.join(resourcesDir, filename)).isDirectory();
-		
-		if (blacklistDirectories.indexOf(lcaseFilename) != -1) {
-			if (isDir) {
-				logger.error(__('Found blacklisted directory in the Resources directory') + '\n');
-				logger.log(__('The directory "%s" is a reserved word.', filename));
-				logger.log(__('You must rename this directory to something else.') + '\n');
-			} else {
-				logger.error(__('Found blacklisted file in the Resources directory') + '\n');
-				logger.log(__('The file "%s" is a reserved word.', filename));
-				logger.log(__('You must rename this file to something else.') + '\n');
+	if (!cli.argv.xcode || !process.env.TITANIUM_CLI_XCODEBUILD) {
+		// make sure the app doesn't have any blacklisted directories in the Resources directory and warn about graylisted names
+		fs.readdirSync(resourcesDir).forEach(function (filename) {
+			var lcaseFilename = filename.toLowerCase(),
+				isDir = fs.lstatSync(path.join(resourcesDir, filename)).isDirectory();
+			
+			if (blacklistDirectories.indexOf(lcaseFilename) != -1) {
+				if (isDir) {
+					logger.error(__('Found blacklisted directory in the Resources directory') + '\n');
+					logger.log(__('The directory "%s" is a reserved word.', filename));
+					logger.log(__('You must rename this directory to something else.') + '\n');
+				} else {
+					logger.error(__('Found blacklisted file in the Resources directory') + '\n');
+					logger.log(__('The file "%s" is a reserved word.', filename));
+					logger.log(__('You must rename this file to something else.') + '\n');
+				}
+				process.exit(1);
+			} else if (graylistDirectories.indexOf(lcaseFilename) != -1) {
+				if (isDir) {
+					logger.warn(__('Found graylisted directory in the Resources directory'));
+					logger.warn(__('The directory "%s" is potentially a reserved word.', filename));
+					logger.warn(__('There is a good chance your app will be rejected by Apple.'));
+					logger.warn(__('It is highly recommended you rename this directory to something else.'));
+				} else {
+					logger.warn(__('Found graylisted file in the Resources directory'));
+					logger.warn(__('The file "%s" is potentially a reserved word.', filename));
+					logger.warn(__('There is a good chance your app will be rejected by Apple.'));
+					logger.warn(__('It is highly recommended you rename this file to something else.'));
+				}
 			}
-			process.exit(1);
-		} else if (graylistDirectories.indexOf(lcaseFilename) != -1) {
-			if (isDir) {
-				logger.warn(__('Found graylisted directory in the Resources directory'));
-				logger.warn(__('The directory "%s" is potentially a reserved word.', filename));
-				logger.warn(__('There is a good chance your app will be rejected by the Apple.'));
-				logger.warn(__('It is highly recommended you rename this directory to something else.'));
-			} else {
-				logger.warn(__('Found graylisted file in the Resources directory'));
-				logger.warn(__('The file "%s" is potentially a reserved word.', filename));
-				logger.warn(__('There is a good chance your app will be rejected by the Apple.'));
-				logger.warn(__('It is highly recommended you rename this file to something else.'));
-			}
-		}
-	});
+		});
+	}
 	
 	ti.validateTiappXml(logger, cli.tiapp);
 	
@@ -836,6 +838,9 @@ function build(logger, config, cli, finished) {
 	this.certDeveloperName = cli.argv['developer-name'];
 	this.certDistributionName = cli.argv['distribution-name'];
 	
+	this.forceCopy = !!cli.argv['force-copy'];
+	this.forceCopyAll = !!cli.argv['force-copy-all'];
+	
 	this.forceRebuild = false;
 	
 	// the ios sdk version is not in the selected xcode version, need to find the version that does have it
@@ -1009,7 +1014,7 @@ build.prototype = {
 				parallel(this, [
 					function (next) {
 						if (this.target == 'simulator') {
-							if (this.cli.argv['force-copy']) {
+							if (this.forceCopy) {
 								this.logger.info(__('Forcing copying of files instead of creating symlinks'));
 							} else {
 								return this.createSymlinks(next);
@@ -1019,18 +1024,15 @@ build.prototype = {
 					},
 					'injectModulesIntoXcodeProject',
 					'injectApplicationDefaults', // if ApplicationDefaults.m was modified, forceRebuild will be set to true
-					'compileJSS',
-					'compileI18N',
 					'copyTitaniumLibraries',
 					'copySimulatorSpecificFiles',
 					'copyModuleResources',
 					'copyCommonJSModules',
 					'copyItunesArtwork',
 					'copyGraphics',
-					'copyLocalizedSplashScreens',
 					'writeBuildManifest'
 				], function () {
-					if (this.forceRebuild || !afs.exists(this.xcodeAppDir, this.tiapp.name)) {
+					if (this.forceRebuild || this.target != 'simulator' || !afs.exists(this.xcodeAppDir, this.tiapp.name)) {
 						this.logger.info(__('Invoking xcodebuild'));
 						this.invokeXcodeBuild(finished);
 					} else {
@@ -1337,7 +1339,7 @@ build.prototype = {
 		proj = injectCompileShellScript(
 			proj,
 			'Post-Compile',
-			"echo 'post-compile'"
+			"echo 'Xcode Post-Compile Phase: Touching important files'\\ntouch -c Classes/ApplicationRouting.h Classes/ApplicationRouting.m Classes/ApplicationDefaults.m Classes/ApplicationMods.m Classes/defines.h"
 		);
 		fs.writeFileSync(path.join(this.buildDir, this.tiapp.name + '.xcodeproj', 'project.pbxproj'), proj);
 		
@@ -1516,6 +1518,20 @@ build.prototype = {
 			return true;
 		}
 		
+		if (this.forceCopy != manifest.forceCopy) {
+			this.logger.info(__('Forcing rebuild: force copy flag changed since last build'));
+			this.logger.info('  ' + __('Was: %s', manifest.forceCopy));
+			this.logger.info('  ' + __('Now: %s', this.forceCopy));
+			return true;
+		}
+		
+		if (this.forceCopyAll != manifest.forceCopyAll) {
+			this.logger.info(__('Forcing rebuild: force copy all flag changed since last build'));
+			this.logger.info('  ' + __('Was: %s', manifest.forceCopyAll));
+			this.logger.info('  ' + __('Now: %s', this.forceCopyAll));
+			return true;
+		}
+		
 		return false;
 	},
 	
@@ -1600,9 +1616,7 @@ build.prototype = {
 		if (this.target == 'simulator') {
 			// during simulator we need to copy in standard built-in module files
 			// since we might not run the compiler on subsequent launches
-			['facebook', 'ui'].forEach(function (name) {
-				this.copyDirSync(path.join(this.titaniumIosSdkPath, 'modules', name, 'images'), path.join(this.xcodeAppDir, 'modules', name, 'images'));
-			}, this);
+			this.copyDirSync(path.join(this.titaniumIosSdkPath, 'modules'), path.join(this.xcodeAppDir, 'modules'));
 			
 			// when in simulator since we point to the resources directory, we need
 			// to explicitly copy over any files
@@ -1796,8 +1810,8 @@ build.prototype = {
 			copyright: this.tiapp.copyright,
 			guid: this.tiapp.guid,
 			skipJSMinification: !!this.cli.argv['skip-js-minify'],
-			forceCopy: !!this.cli.argv['force-copy'],
-			forceCopyAll: this.cli.argv['force-copy-all']
+			forceCopy: !!this.forceCopy,
+			forceCopyAll: !!this.forceCopyAll
 		}, null, '\t'), callback);
 	},
 	
@@ -1846,7 +1860,7 @@ build.prototype = {
 		);
 	},
 	
-	copyLocalizedSplashScreens: function (callback) {
+	copyLocalizedSplashScreens: function () {
 		ti.i18n.splashScreens(this.projectDir, this.logger).forEach(function (splashImage) {
 			var token = splashImage.split('/'),
 				file = token.pop(),
@@ -1870,8 +1884,6 @@ build.prototype = {
 				logger: this.logger.debug
 			});
 		}, this);
-		
-		callback();
 	},
 	
 	injectModulesIntoXcodeProject: function (callback) {
@@ -2534,18 +2546,31 @@ build.prototype = {
 				}.bind(this));
 			},
 			function (next) {
-				var debuggerPlist = path.join(this.xcodeAppDir, 'debugger.plist');
-				if (this.deployType == 'production' && afs.exists(debuggerPlist)) {
-					this.logger.info(__('Removing %s from production build', 'debugger.plist'.cyan));
-					fs.unlinkSync(debuggerPlist);
+				var src = path.join(this.buildDir, 'debugger.plist'),
+					dest = path.join(this.xcodeAppDir, 'debugger.plist');
+				
+				// we only copy the debugger.plist dev/test when building from Studio (via the Ti CLI), otherwise make sure the file doesn't exist
+				if (this.deployType != 'production' && process.env.TITANIUM_CLI_XCODEBUILD) {
+					afs.copyFileSync(
+						src,
+						dest,
+						{ logger: this.logger.debug }
+					);
+				} else if (afs.exists(dest)) {
+					this.logger.info(__('Removing unwanted %s from build', 'debugger.plist'.cyan));
+					fs.unlinkSync(dest);
 				}
+				
 				next();
 			}
 		], function () {
+			// localize the splash screen after the resources files have been copied
+			this.copyLocalizedSplashScreens();
+			
 			parallel(this, [
 				function (next) {
 					// if development and the simulator, then we're symlinking files and there's no need to anything below
-					if (this.deployType == 'development' && this.target == 'simulator' && !this.cli.argv['force-copy']) {
+					if (this.deployType == 'development' && this.target == 'simulator' && !this.forceCopy) {
 						return next();
 					}
 					

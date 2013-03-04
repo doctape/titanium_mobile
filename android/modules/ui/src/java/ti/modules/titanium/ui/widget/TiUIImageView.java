@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -85,7 +86,7 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 	private int decodeRetries = 0;
 	private Object releasedLock = new Object();
 	private String currentUrl;
-	
+
 	final class ImageDownloadListener implements TiDownloadListener {
 		public int mToken;
 		public ImageArgs mImageArgs;
@@ -123,16 +124,20 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 							true,  
 							false);
 					BackgroundImageTask task = new BackgroundImageTask();
-					task.execute(imageArgs);
+					try {
+						task.execute(imageArgs);
+					} catch (RejectedExecutionException e) {
+						Log.e(TAG, "Cannot load the image. Loading too many images at the same time.");
+					}
 				}	
 			}
 		}
 
 		@Override
-		public void downloadFailed()
+		public void downloadFailed(URI uri)
 		{
 			// If the download failed, fire an error event
-			fireError();
+			fireError("Download Failed", uri.toString());
 		}
 	};
 	
@@ -313,8 +318,6 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 		// what the current bitmap should be.
 		imageViewProxy.onBitmapChanged(this, bitmap);
 	}
-	
-
 
 	private class BitmapWithIndex
 	{
@@ -473,7 +476,7 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 	private void setImages()
 	{
 		if (imageSources == null || imageSources.size() == 0) {
-			fireError();
+			fireError("Missing Images", null);
 			return;
 		}
 
@@ -538,9 +541,13 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 		proxy.fireEvent(TiC.EVENT_STOP, data);
 	}
 
-	private void fireError()
+	private void fireError(String message, String imageUrl)
 	{
 		KrollDict data = new KrollDict();
+		data.putCodeAndMessage(TiC.ERROR_CODE_UNKNOWN, message);
+		if (imageUrl != null) {
+			data.put(TiC.PROPERTY_IMAGE, imageUrl);
+		}
 		proxy.fireEvent(TiC.EVENT_ERROR, data);
 	}
 
@@ -747,79 +754,75 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 			
 		}
 	}
-	
-	final class BackgroundImageTask extends AsyncTask<ImageArgs, Void, Bitmap> {
+
+	final class BackgroundImageTask extends AsyncTask<ImageArgs, Void, Bitmap>
+	{
 		private boolean recycle;
 		private boolean mNetworkURL;
 		private boolean mAsync = false;
 		private String mUrl;
-		
-        @Override
-        protected Bitmap doInBackground(final ImageArgs... params) {
-        	final ImageArgs imageArgs = params[0];
-            
-            recycle = imageArgs.mRecycle;
-            mNetworkURL = imageArgs.mNetworkURL;
-            Bitmap bitmap = null;
-                
-            mUrl = imageArgs.mImageref.getUrl();
 
-            if (mNetworkURL) {
-            	boolean getAsync = true;
-    			try {
-    				String imageUrl = TiUrl.getCleanUri(imageArgs.mImageref.getUrl()).toString();
-    					
-    				URI uri = new URI(imageUrl);
-    				getAsync = !TiResponseCache.peek(uri);	// expensive, don't want to do in UI thread
-    			} catch (URISyntaxException e) {
-    				Log.e(TAG, "URISyntaxException for url " + imageArgs.mImageref.getUrl(), e);
-    				getAsync = false;
-    			} catch (NullPointerException e) {
-    				Log.e(TAG, "NullPointerException for url " + imageArgs.mImageref.getUrl(), e);
-    				getAsync = false;
-    			} catch (Exception e) {
-    				Log.e(TAG,  "Caught exception for url" + imageArgs.mImageref.getUrl(), e);
-    			}
-    			if (getAsync) {
-    				//
-    				// We've got to start the download back on the UI thread, if we do it on one
-    				// of the AsyncTask threads it will throw an exception.
-    				//
-    				mAsync = true;
- 
-    				TiMessenger.getMainMessenger().post(new Runnable()
-    				{
-    					@Override
-    					public void run()
-    					{
-    	    				imageArgs.mImageref.getBitmapAsync(imageDownloadListener);
-    				
-    					}
-    				});
+		@Override
+		protected Bitmap doInBackground(final ImageArgs... params)
+		{
+			final ImageArgs imageArgs = params[0];
 
-    			} else {
-    				bitmap = (imageArgs.mImageref).getBitmap(
-                		imageArgs.mView, 
-                		imageArgs.mRequestedWidth, 
-                		imageArgs.mRequestedHeight);
-    			}
-            }
-            else {
-            	bitmap = (imageArgs.mImageref).getBitmap(
-            			imageArgs.mView, 
-                		imageArgs.mRequestedWidth, 
-                		imageArgs.mRequestedHeight);
-            }
-            return bitmap;
-        }
-        
-        @Override
-        protected void onPostExecute(Bitmap result) {
-        	if (!mNetworkURL || currentUrl.equals(mUrl)) {
-				if (result != null) {	
-					
-						setImage(result);
-	
+			recycle = imageArgs.mRecycle;
+			mNetworkURL = imageArgs.mNetworkURL;
+			Bitmap bitmap = null;
+
+			mUrl = imageArgs.mImageref.getUrl();
+
+			if (mNetworkURL) {
+				boolean getAsync = true;
+				try {
+					String imageUrl = TiUrl.getCleanUri(imageArgs.mImageref.getUrl()).toString();
+
+					URI uri = new URI(imageUrl);
+					getAsync = !TiResponseCache.peek(uri); // expensive, don't want to do in UI thread
+				} catch (URISyntaxException e) {
+					Log.e(TAG, "URISyntaxException for url " + imageArgs.mImageref.getUrl(), e);
+					getAsync = false;
+				} catch (NullPointerException e) {
+					Log.e(TAG, "NullPointerException for url " + imageArgs.mImageref.getUrl(), e);
+					getAsync = false;
+				} catch (Exception e) {
+					Log.e(TAG, "Caught exception for url" + imageArgs.mImageref.getUrl(), e);
+				}
+				if (getAsync) {
+					//
+					// We've got to start the download back on the UI thread, if we do it on one
+					// of the AsyncTask threads it will throw an exception.
+					//
+					mAsync = true;
+
+					TiMessenger.getMainMessenger().post(new Runnable()
+					{
+						@Override
+						public void run()
+						{
+							imageArgs.mImageref.getBitmapAsync(imageDownloadListener);
+
+						}
+					});
+
+				} else {
+					bitmap = (imageArgs.mImageref).getBitmap(imageArgs.mView, imageArgs.mRequestedWidth,
+						imageArgs.mRequestedHeight);
+				}
+			} else {
+				bitmap = (imageArgs.mImageref).getBitmap(imageArgs.mView, imageArgs.mRequestedWidth,
+					imageArgs.mRequestedHeight);
+			}
+			return bitmap;
+		}
+
+		@Override
+		protected void onPostExecute(Bitmap result)
+		{
+			if (!mNetworkURL || currentUrl.equals(mUrl)) {
+				if (result != null) {
+					setImage(result);
 					if (!firedLoad) {
 						fireLoad(TiC.PROPERTY_IMAGE);
 						firedLoad = true;
@@ -829,10 +832,10 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 						retryDecode(recycle);
 					}
 				}
-        	}
-        }
+			}
+		}
 	}
-	
+
 	private void setImage(boolean recycle) {
 		
 		if (imageSources == null || imageSources.size() == 0 || imageSources.get(0) == null || imageSources.get(0).isTypeNull()) {
@@ -870,7 +873,11 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 								true);
 					
 				BackgroundImageTask task = new BackgroundImageTask();
-				task.execute(imageArgs);
+				try {
+					task.execute(imageArgs);
+				} catch (RejectedExecutionException e) {
+					Log.e(TAG, "Cannot load the image. Loading too many images at the same time.");
+				}
 
 			} else {
 				currentUrl = imageref.getUrl();
@@ -879,7 +886,11 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 						false);
 				
 				BackgroundImageTask task = new BackgroundImageTask();
-				task.execute(imageArgs);
+				try {
+					task.execute(imageArgs);
+				} catch (RejectedExecutionException e) {
+					Log.e(TAG, "Cannot load the image. Loading too many images at the same time.");
+				}
 			}
 		} else {
 			setImages();
@@ -919,8 +930,9 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 				url = imageSources.get(0).getUrl();
 			}
 			// Fire an error event when we've reached max retries
-			fireError();
-			Log.e(TAG, "Max retries reached, giving up decoding image source: " + url);
+			String message = "Max retries reached, giving up decoding image source: " + url;
+			fireError(message, url);
+			Log.e(TAG, message);
 		}
 	}
 
@@ -956,10 +968,10 @@ public class TiUIImageView extends TiUIView implements OnLifecycleEvent, Handler
 			setImages();
 		} 
 		if (d.containsKey(TiC.PROPERTY_CAN_SCALE)) {
-			view.setCanScaleImage(TiConvert.toBoolean(d, TiC.PROPERTY_CAN_SCALE));
+			view.setCanScaleImage(TiConvert.toBoolean(d, TiC.PROPERTY_CAN_SCALE, false));
 		}
 		if (d.containsKey(TiC.PROPERTY_ENABLE_ZOOM_CONTROLS)) {
-			view.setEnableZoomControls(TiConvert.toBoolean(d, TiC.PROPERTY_ENABLE_ZOOM_CONTROLS));
+			view.setEnableZoomControls(TiConvert.toBoolean(d, TiC.PROPERTY_ENABLE_ZOOM_CONTROLS, true));
 		}
 		if (d.containsKey(TiC.PROPERTY_DEFAULT_IMAGE)) {
 			Object defaultImage = d.get(TiC.PROPERTY_DEFAULT_IMAGE);

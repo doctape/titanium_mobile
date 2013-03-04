@@ -118,11 +118,10 @@ v8::Handle<v8::Value> TypeConverter::javaStringToJsString(jstring javaString)
 		return v8::Null();
 	}
 
-	const jchar *nativeString = env->GetStringChars(javaString, NULL);
 	int nativeStringLength = env->GetStringLength(javaString);
-
+	const jchar *nativeString = env->GetStringCritical(javaString, NULL);
 	v8::Handle<v8::String> jsString = v8::String::New(nativeString, nativeStringLength);
-	env->ReleaseStringChars(javaString, nativeString);
+	env->ReleaseStringCritical(javaString, nativeString);
 
 	return jsString;
 }
@@ -540,6 +539,85 @@ jobject TypeConverter::jsValueToJavaObject(v8::Local<v8::Value> jsValue, bool *i
 	return NULL;
 }
 
+// converts js value to java error
+jobject TypeConverter::jsValueToJavaError(v8::Local<v8::Value> jsValue, bool* isNew)
+{
+	JNIEnv *env = JNIScope::getEnv();
+	if (env == NULL) {
+		return NULL;
+	}
+
+	if (jsValue->IsObject()) {
+		v8::Handle<v8::Object> jsObject = jsValue->ToObject();
+
+		// If it's a java object, we just return null for now.
+		if (!JavaObject::isJavaObject(jsObject)) {
+
+			Handle<String> stackString = String::New("stack"), messageString = String::New("message");
+			if (jsObject->HasOwnProperty(stackString) || jsObject->HasOwnProperty(messageString)) {
+				bool keyIsNew, valueIsNew;
+				*isNew = true;
+				v8::Local<v8::Value> jsObjectMessageProperty = jsObject->GetRealNamedProperty(messageString);
+				v8::Local<v8::Value> jsObjectStackProperty = jsObject->GetRealNamedProperty(stackString);
+
+				return env->NewObject(JNIUtil::krollExceptionClass, JNIUtil::krollExceptionInitMethod,
+							TypeConverter::jsValueToJavaString(jsObjectMessageProperty), TypeConverter::jsValueToJavaString(jsObjectStackProperty));
+			}
+		}
+
+	} else  {
+		*isNew = true;
+		return env->NewObject(JNIUtil::krollExceptionClass, JNIUtil::krollExceptionInitMethod,
+			TypeConverter::jsValueToJavaString(jsValue), NULL);
+	} 
+
+	if (!jsValue->IsNull() && !jsValue->IsUndefined()) {
+		LOGW(TAG, "jsValueToJavaObject returning null.");
+	}
+	return NULL;
+}
+
+// converts java hashmap to js value and recursively converts sub objects if this
+// object is a container type. If javaObject is NULL, an empty object is created.
+v8::Handle<v8::Object> TypeConverter::javaHashMapToJsValue(JNIEnv *env, jobject javaObject)
+{
+	v8::Handle<v8::Object> jsObject = v8::Object::New();
+	if (!javaObject || !env) {
+		return jsObject;
+	}
+
+	jobject hashMapSet = env->CallObjectMethod(javaObject, JNIUtil::hashMapKeySetMethod);
+	jobjectArray hashMapKeys = (jobjectArray) env->CallObjectMethod(hashMapSet, JNIUtil::setToArrayMethod);
+	env->DeleteLocalRef(hashMapSet);
+
+	int hashMapKeysLength = env->GetArrayLength(hashMapKeys);
+	bool isStringHashMap = env->IsInstanceOf(hashMapKeys, JNIUtil::stringArrayClass);
+
+	for (int i = 0; i < hashMapKeysLength; i++) {
+		jobject javaPairKey = env->GetObjectArrayElement(hashMapKeys, i);
+		v8::Handle<v8::Value> jsPairKey;
+		if (isStringHashMap) {
+			jstring javaString = (jstring)javaPairKey;
+			int nativeStringLength = env->GetStringLength(javaString);
+			const jchar *nativeString = env->GetStringCritical(javaString, NULL);
+			jsPairKey = v8::String::New(nativeString, nativeStringLength);
+			env->ReleaseStringCritical(javaString, nativeString);
+		} else {
+			jsPairKey = TypeConverter::javaObjectToJsValue(javaPairKey);
+		}
+
+		jobject javaPairValue = env->CallObjectMethod(javaObject, JNIUtil::hashMapGetMethod, javaPairKey);
+		env->DeleteLocalRef(javaPairKey);
+
+		jsObject->Set(jsPairKey, TypeConverter::javaObjectToJsValue(javaPairValue));
+		env->DeleteLocalRef(javaPairValue);
+	}
+
+	env->DeleteLocalRef(hashMapKeys);
+
+	return jsObject;
+}
+
 // converts java object to js value and recursively converts sub objects if this
 // object is a container type
 v8::Handle<v8::Value> TypeConverter::javaObjectToJsValue(jobject javaObject)
@@ -568,28 +646,7 @@ v8::Handle<v8::Value> TypeConverter::javaObjectToJsValue(jobject javaObject)
 		return TypeConverter::javaDateToJsDate(javaObject);
 
 	} else if (env->IsInstanceOf(javaObject, JNIUtil::hashMapClass)) {
-		v8::Handle<v8::Object> jsObject = v8::Object::New();
-
-		jobject hashMapSet = env->CallObjectMethod(javaObject, JNIUtil::hashMapKeySetMethod);
-
-		jobjectArray hashMapKeys = (jobjectArray) env->CallObjectMethod(hashMapSet, JNIUtil::setToArrayMethod);
-		env->DeleteLocalRef(hashMapSet);
-		int hashMapKeysLength = env->GetArrayLength(hashMapKeys);
-
-		for (int i = 0; i < hashMapKeysLength; i++) {
-			jobject javaPairKey = env->GetObjectArrayElement(hashMapKeys, i);
-			v8::Handle<v8::Value> jsPairKey = TypeConverter::javaObjectToJsValue(javaPairKey);
-
-			jobject javaPairValue = env->CallObjectMethod(javaObject, JNIUtil::hashMapGetMethod, javaPairKey);
-			env->DeleteLocalRef(javaPairKey);
-
-			jsObject->Set(jsPairKey, TypeConverter::javaObjectToJsValue(javaPairValue));
-			env->DeleteLocalRef(javaPairValue);
-		}
-
-		env->DeleteLocalRef(hashMapKeys);
-
-		return jsObject;
+		return TypeConverter::javaHashMapToJsValue(env, javaObject);
 	} else if (env->IsInstanceOf(javaObject, JNIUtil::krollProxyClass)) {
 		jobject krollObject = env->GetObjectField(javaObject, JNIUtil::krollProxyKrollObjectField);
 		if (krollObject) {

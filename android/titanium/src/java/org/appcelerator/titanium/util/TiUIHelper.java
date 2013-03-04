@@ -217,11 +217,21 @@ public class TiUIHelper
 		});
 	}
 
-	public static int toTypefaceStyle(String fontWeight) {
+	public static int toTypefaceStyle(String fontWeight, String fontStyle)
+	{
 		int style = Typeface.NORMAL;
+
 		if (fontWeight != null) {
-			if(fontWeight.equals("bold")) {
-				style = Typeface.BOLD;
+			if (fontWeight.equals("bold")) {
+				if (fontStyle != null && fontStyle.equals("italic")) {
+					style = Typeface.BOLD_ITALIC;
+				} else {
+					style = Typeface.BOLD;
+				}
+			} else if (fontWeight.equals("normal")) {
+				if (fontStyle != null && fontStyle.equals("italic")) {
+					style = Typeface.ITALIC;
+				}
 			}
 		}
 		return style;
@@ -298,9 +308,16 @@ public class TiUIHelper
 	}
 
 	public static void styleText(TextView tv, HashMap<String, Object> d) {
+	
+		if (d == null) {
+			TiUIHelper.styleText(tv, null, null, null);
+			return;
+		}
+		
 		String fontSize = null;
 		String fontWeight = null;
 		String fontFamily = null;
+		String fontStyle = null;
 
 		if (d.containsKey("fontSize")) {
 			fontSize = TiConvert.toString(d, "fontSize");
@@ -311,13 +328,22 @@ public class TiUIHelper
 		if (d.containsKey("fontFamily")) {
 			fontFamily = TiConvert.toString(d, "fontFamily");
 		}
-		TiUIHelper.styleText(tv, fontFamily, fontSize, fontWeight);
+		if (d.containsKey("fontStyle")) {
+			fontStyle = TiConvert.toString(d, "fontStyle");
+		}
+		TiUIHelper.styleText(tv, fontFamily, fontSize, fontWeight, fontStyle);
 	}
 
-	public static void styleText(TextView tv, String fontFamily, String fontSize, String fontWeight) {
+	public static void styleText(TextView tv, String fontFamily, String fontSize, String fontWeight)
+	{
+		styleText(tv, fontFamily, fontSize, fontWeight, null);
+	}
+
+	public static void styleText(TextView tv, String fontFamily, String fontSize, String fontWeight, String fontStyle)
+	{
 		Typeface tf = tv.getTypeface();
 		tf = toTypeface(tv.getContext(), fontFamily);
-		tv.setTypeface(tf, toTypefaceStyle(fontWeight));
+		tv.setTypeface(tf, toTypefaceStyle(fontWeight, fontStyle));
 		tv.setTextSize(getSizeUnits(fontSize), getSize(fontSize));
 	}
 
@@ -479,26 +505,15 @@ public class TiUIHelper
 		Drawable imageDrawable = null;
 		if (image != null) {
 			TiFileHelper tfh = TiFileHelper.getInstance();
-			Context appContext = TiApplication.getInstance();
+			imageDrawable = tfh.loadDrawable(image, false, true);
 
 			if (tileImage) {
-				InputStream inputStream;
-				try {
-					inputStream = tfh.openInputStream(image, false);
-					if (inputStream != null) {
-						BitmapDrawable tiledBackground = new BitmapDrawable(appContext.getResources(), inputStream);
-						tiledBackground.setTileModeX(Shader.TileMode.REPEAT);
-						tiledBackground.setTileModeY(Shader.TileMode.REPEAT);
-
-						imageDrawable = tiledBackground;
-					}
-
-				} catch (IOException e) {
-					Log.e(TAG, "Exception occured when trying to open stream to specified background image: ", e);
+				if (imageDrawable instanceof BitmapDrawable) {
+					BitmapDrawable tiledBackground = (BitmapDrawable) imageDrawable;
+					tiledBackground.setTileModeX(Shader.TileMode.REPEAT);
+					tiledBackground.setTileModeY(Shader.TileMode.REPEAT);
+					imageDrawable = tiledBackground;
 				}
-
-			} else {
-				imageDrawable = tfh.loadDrawable(image, false, true);
 			}
 
 			if (imageDrawable != null) {
@@ -835,16 +850,21 @@ public class TiUIHelper
 
 	public static Drawable getResourceDrawable(Object path)
 	{
-		Drawable d;
-
-		if (path instanceof String) {
-			TiUrl imageUrl = new TiUrl((String) path);
-			TiFileHelper tfh = new TiFileHelper(TiApplication.getInstance());
-			d = tfh.loadDrawable(imageUrl.resolve(), false);
-		} else {
-			d = TiDrawableReference.fromObject(TiApplication.getInstance().getCurrentActivity(), path).getDrawable();
+		Drawable d = null;
+		
+		try {
+	
+			if (path instanceof String) {
+				TiUrl imageUrl = new TiUrl((String) path);
+				TiFileHelper tfh = new TiFileHelper(TiApplication.getInstance());
+				d = tfh.loadDrawable(imageUrl.resolve(), false);
+			} else {
+				d = TiDrawableReference.fromObject(TiApplication.getInstance().getCurrentActivity(), path).getDrawable();
+			}
+		} catch (Exception e) {
+			Log.w(TAG, "Could not load drawable "+e.getMessage(), Log.DEBUG_MODE);
+			d = null;
 		}
-
 		return d;
 	}
 
