@@ -40,11 +40,9 @@
 
 -(void)_initWithProperties:(NSDictionary *)properties
 {
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_4_0
     // default handlePlayRemoteControls to true
     bool handlePlayRemoteControls = [TiUtils boolValue:@"handlePlayRemoteControls" properties:properties def:YES];
     [self setValue:NUMBOOL(handlePlayRemoteControls) forKey:@"handlePlayRemoteControls"];
-#endif
 }
 
 -(void)_configure

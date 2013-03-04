@@ -27,13 +27,11 @@
 	if (initialMode) {
 		[self setAudioSessionMode:[NSNumber numberWithInt:initialMode]];
 	}
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_4_0
 	// default handlePlayRemoteControls to true
 	bool handlePlayRemoteControls = [TiUtils boolValue:@"handlePlayRemoteControls" properties:properties def:YES];
 	[self setValue:NUMBOOL(handlePlayRemoteControls) forKey:@"handlePlayRemoteControls"];    
 	WARN_IF_BACKGROUND_THREAD_OBJ;	//NSNotificationCenter is not threadsafe!
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(remoteControlEvent:) name:kTiRemoteControlNotification object:nil];
-#endif
 }
 
 -(void)_destroy
@@ -440,7 +438,6 @@ MAKE_SYSTEM_PROP(STATE_PAUSED,AS_PAUSED);
 	}
 }
 
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_4_0
 - (void)remoteControlEvent:(NSNotification*)note
 {
 	UIEvent *uiEvent = [[note userInfo] objectForKey:@"event"];
@@ -489,7 +486,6 @@ MAKE_SYSTEM_PROP(STATE_PAUSED,AS_PAUSED);
             break;
 	}
 }
-#endif
 
 @end
 

@@ -210,8 +210,6 @@
 
 #endif
 
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_4_0
-
 @property (nonatomic,readonly) NSNumber *REMOTE_CONTROL_PLAY;
 @property (nonatomic,readonly) NSNumber *REMOTE_CONTROL_PAUSE;
 @property (nonatomic,readonly) NSNumber *REMOTE_CONTROL_STOP;
@@ -222,8 +220,6 @@
 @property (nonatomic,readonly) NSNumber *REMOTE_CONTROL_END_SEEK_BACK;
 @property (nonatomic,readonly) NSNumber *REMOTE_CONTROL_START_SEEK_FORWARD;
 @property (nonatomic,readonly) NSNumber *REMOTE_CONTROL_END_SEEK_FORWARD;
-
-#endif
 
 @end
 
